@@ -1,0 +1,9 @@
+```{r}
+library(markdown)
+library(knitr)
+setwd("C:/Users/Eropa1981/Desktop/MachineLearning")
+knit("Eropa1981_Assignment.Rmd")
+markdownToHTML("Eropa1981_Assignment.md", "Eropa1981_Assignment.html")
+```
+
+

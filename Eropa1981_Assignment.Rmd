@@ -1,0 +1,184 @@
+---
+title: "Practical Machine Learning - Quantified Self Movement Data Analysis Assignment"
+author: "Erik Rodriguez Pacheco"
+date: "Thursday, June 11, 2015"
+output: html_document
+---
+
+### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+
+### Reading and Manipulating Data
+
+#### Load needed Packages 
+
+The first step is call the different librarys that we going to use
+
+```{r}
+suppressWarnings(suppressMessages(library(caret)))
+suppressWarnings(suppressMessages(library(rpart)))
+suppressWarnings(suppressMessages(library(rpart.plot)))
+suppressWarnings(suppressMessages(library(randomForest)))
+suppressWarnings(suppressMessages(library(rattle)))
+
+```
+
+
+#### Set working directory and files to work
+
+Next, is necessary to define the working directory
+
+```{r}
+Dir<-setwd("C:/Users/Eropa1981/Desktop/MachineLearning")
+testDB <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+trainDB <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+
+testCsv  <- "./pml-testing.csv"
+trainCsv <- "./pml-training.csv"
+
+```
+
+
+#### Download Training and testing files to Directory
+
+Next, We need obtain data to work, in possible to create a function to conditional downloading
+
+```{r}
+
+if (!file.exists(testCsv)) {
+  download.file(testDB, destfile=testCsv)
+}
+
+if (!file.exists(trainCsv)) {
+  download.file(trainDB, destfile=trainCsv)
+}
+getwd()
+dir(Dir)
+```
+
+
+#### Reading the CSV Files to R
+
+To continue is necessary to load data from CSV Files to data frames in R, at this point we can make a look to data quality.
+
+```{r}
+train <- read.csv("./pml-training.csv")
+test <- read.csv("./pml-testing.csv")
+dim(train)
+dim(test)
+str(train)
+head(train)
+
+```
+
+#### Apply some cleaning 
+
+Making use of "str" and "complete.cases" functions  we notice some nulls in data set and is important make some cleaning
+
+```{r}
+table(complete.cases(train))
+train <- train[, colSums(is.na(train)) == 0] 
+test <- test[, colSums(is.na(test)) == 0] 
+table(complete.cases(train))
+
+classe <- train$classe
+trainRemove <- grepl("^X|timestamp|window", names(train))
+train <- train[, !trainRemove]
+trainCleaned <- train[, sapply(train, is.numeric)]
+trainCleaned$classe <- classe
+testRemove <- grepl("^X|timestamp|window", names(test))
+test <- test[, !testRemove]
+testCleaned <- test[, sapply(test, is.numeric)]
+```
+
+#### Splitting data in Train and Test datasets
+
+With cleaned data, proceding to make a training and testing data set
+
+```{r}
+set.seed(995378) 
+inTrain <- createDataPartition(trainCleaned$classe, p=0.70, list=F)
+trainData <- trainCleaned[inTrain, ]
+testData <- trainCleaned[-inTrain, ]
+
+```
+
+
+#### Modeling
+
+We contruct a predictive model based in Random Forest Model with 500 forest and 5 Fold Cross Validation.
+
+```{r}
+control <- trainControl(method="cv", 5)
+model <- train(classe ~ ., data=trainData, method="rf", trControl=control, ntree=500)
+model
+plot(model)
+save(model, file = "Model_Eropa1981.rda")
+modelImp <- randomForest(classe ~ ., data = trainData, importance = FALSE)
+order(varImp(modelImp), decreasing=T)
+varImpPlot(modelImp)
+```
+
+
+To better understanding of types of rules, we can plot a classification Tree to visualize a set of rules that a human can interpret
+
+```{r}
+onetree <- rpart(classe ~ ., data=trainData, method="class",
+                   control = rpart.control(cp = 0.03))
+fancyRpartPlot(onetree) 
+```
+
+
+##### Performance of the Model
+
+Next, we can test the model to determine the quality to make some predictions
+
+```{r}
+predict <- predict(model, testData)
+confusionMatrix(testData$classe, predict)
+
+```
+
+
+```{r}
+acc <- postResample(predict, testData$classe)
+acc
+```
+
+```{r}
+oose <- 1 - as.numeric(confusionMatrix(testData$classe, predict)$overall[1])
+oose
+```
+
+The estimated accuracy of the model is 99.46% and the estimated out-of-sample error is 0.54%.
+
+
+#### Make a Prediction in testing Data Set
+
+```{r}
+results <- predict(model, testCleaned[, -length(names(testCleaned))])
+results
+```
+
+
+#### Save the files for submission
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+
+pml_write_files(result)
+```
+
+
+
+
+
